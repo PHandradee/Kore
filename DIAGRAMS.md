@@ -1,262 +1,298 @@
-# Diagramas de Arquitetura do Kore 3
+# Kore 3 - Mermaid Diagrams
 
-## Visão Geral da Arquitetura
+## 1. General Architecture Overview
 
 ```mermaid
 graph TB
-    subgraph "Aplicação do Usuário"
-        App[kickstart / main]
-        Update[Update Callback]
-        Render[Renderização]
-        Logic[Lógica do Jogo]
+    subgraph "User Application Layer"
+        A[Your Game/Engine Code]
     end
     
-    subgraph "Kore 3 Core"
-        System[Sistema / Window Management]
-        GPU[GPU API Abstraction]
-        Audio[Audio System]
-        Input[Input System]
-        IO[File I/O]
-        Network[Network]
-        Math[Math Library]
-        Threads[Threading]
+    subgraph "Kore 3 Public API"
+        B[System & Window API]
+        C[GPU API]
+        D[Audio API]
+        E[Input API]
+        F[I/O API]
+        G[Network API]
+        H[Math API]
+        I[Threads API]
     end
     
-    subgraph "Backends - Sistema"
-        Win[Windows]
-        Mac[macOS / iOS]
-        Lin[Linux / Android]
-        Web[Emscripten / WASM]
+    subgraph "Core Implementation"
+        J[Common Code - sources/]
     end
     
-    subgraph "Backends - GPU"
-        D3D11[Direct3D 11]
-        D3D12[Direct3D 12]
-        VK[Vulkan]
-        MTL[Metal]
-        GL[OpenGL / WebGL]
-        WGPU[WebGPU]
+    subgraph "Platform Backends"
+        K[Windows Backend]
+        L[macOS Backend]
+        M[Linux Backend]
+        N[Android Backend]
+        O[iOS Backend]
+        P[Web Backend]
     end
     
-    subgraph "Backends - Audio"
-        WASAPI[WASAPI]
-        DS[DirectSound]
-        CoreAudio[CoreAudio]
-        ALSA[ALSA]
+    subgraph "Graphics Backends"
+        Q[Direct3D 11]
+        R[Direct3D 12]
+        S[Vulkan]
+        T[Metal]
+        U[OpenGL]
+        V[WebGPU]
     end
     
-    App --> System
-    App --> GPU
-    App --> Audio
-    App --> Input
-    App --> IO
-    App --> Network
-    App --> Math
-    App --> Threads
+    subgraph "Native APIs"
+        W[Win32/UWP]
+        X[Cocoa]
+        Y[X11/Wayland]
+        Z[Android SDK]
+        AA[UIKit]
+        AB[Emscripten]
+    end
     
-    Update --> Logic
-    Logic --> Render
-    Render --> GPU
+    A --> B
+    A --> C
+    A --> D
+    A --> E
+    A --> F
+    A --> G
+    A --> H
+    A --> I
     
-    System --> Win
-    System --> Mac
-    System --> Lin
-    System --> Web
+    B --> J
+    C --> J
+    D --> J
+    E --> J
+    F --> J
+    G --> J
+    H --> J
+    I --> J
     
-    GPU --> D3D11
-    GPU --> D3D12
-    GPU --> VK
-    GPU --> MTL
-    GPU --> GL
-    GPU --> WGPU
+    J --> K
+    J --> L
+    J --> M
+    J --> N
+    J --> O
+    J --> P
     
-    Audio --> WASAPI
-    Audio --> DS
-    Audio --> CoreAudio
-    Audio --> ALSA
+    K --> Q
+    K --> R
+    K --> S
+    K --> U
+    L --> T
+    L --> U
+    M --> S
+    M --> U
+    N --> S
+    N --> U
+    O --> T
+    O --> U
+    P --> V
+    P --> U
     
-    style App fill:#e1f5fe
-    style System fill:#fff3e0
-    style GPU fill:#f3e5f5
-    style Audio fill:#e8f5e9
+    K --> W
+    L --> X
+    M --> Y
+    N --> Z
+    O --> AA
+    P --> AB
 ```
 
 ---
 
-## Fluxo de Inicialização
+## 2. Initialization Flow
 
 ```mermaid
 sequenceDiagram
-    participant User as Aplicação
-    participant Kore as Kore Core
-    participant Win as Window System
-    participant GPU as GPU Backend
-    participant Audio as Audio Backend
-    participant Input as Input Backend
+    participant App as Application
+    participant Kick as kickstart()
+    participant Init as kore_init()
+    participant GPU as kore_gpu_init()
+    participant Callback as kore_set_update_callback()
+    participant Start as kore_start()
+    participant Loop as Main Loop
+    participant Backend as Platform Backend
     
-    User->>Kore: kore_init(name, width, height, win_params, frame_params)
-    activate Kore
+    App->>Kick: kickstart(argc, argv)
+    activate Kick
     
-    Kore->>Win: Criar janela inicial
-    activate Win
-    Win-->>Kore: Window ID (0)
-    deactivate Win
+    Kick->>Init: kore_init(title, width, height)
+    activate Init
+    Init->>Backend: Create window
+    Backend-->>Init: Window handle
+    Init-->>Kick: Success
+    deactivate Init
     
-    Kore->>GPU: kore_gpu_init(api_type)
+    Kick->>GPU: kore_gpu_init(api_type)
     activate GPU
-    GPU-->>Kore: Device criado
+    GPU->>Backend: Initialize graphics context
+    Backend-->>GPU: Device & swapchain
+    GPU-->>Kick: GPU ready
     deactivate GPU
     
-    Kore->>Audio: Inicializar mixer
-    activate Audio
-    Audio-->>Kore: Mixer pronto
-    deactivate Audio
+    Kick->>Callback: kore_set_update_callback(fn, data)
+    activate Callback
+    Callback-->>Kick: Callback registered
+    deactivate Callback
     
-    Kore->>Input: Inicializar dispositivos
-    activate Input
-    Input-->>Kore: Dispositivos prontos
-    deactivate Input
+    Kick->>Start: kore_start()
+    activate Start
+    Start->>Loop: Enter main loop
+    activate Loop
     
-    Kore-->>User: Sistema inicializado
-    deactivate Kore
+    loop Every Frame
+        Loop->>Backend: Process input events
+        Backend-->>Loop: Input state
+        
+        Loop->>Backend: Process window events
+        Backend-->>Loop: Window events
+        
+        Loop->>App: Call update callback
+        App-->>Loop: Update complete
+        
+        Loop->>Loop: Render frame (GPU commands)
+        Loop->>Backend: Present/Swap
+        Backend-->>Loop: Frame displayed
+    end
     
-    User->>Kore: kore_set_update_callback(callback, data)
-    Kore-->>User: Callback registrado
+    Note over Loop: Continues until kore_stop()
     
-    User->>Kore: kore_start()
-    activate Kore
-    Note over Kore: Main Loop inicia
-    Kore-->>User: Controle transferido
-    deactivate Kore
+    Loop-->>Start: Exit loop
+    deactivate Loop
+    Start-->>Kick: Return
+    deactivate Start
+    Kick-->>App: Return 0
+    deactivate Kick
 ```
 
 ---
 
-## Main Loop
+## 3. Main Loop State Diagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Iniciando : kore_init()
+    [*] --> Initializing: kore_start()
     
-    state MainLoop {
+    Initializing --> Running: Initialization complete
+    
+    state Running {
         [*] --> ProcessInput
         
-        ProcessInput --> ProcessWindowEvents : Checar eventos
-        ProcessWindowEvents --> UpdateCallback : Chamar update
-        UpdateCallback --> RenderFrame : Renderizar
-        RenderFrame --> SwapBuffers : Apresentar frame
-        SwapBuffers --> ProcessInput : Próximo frame
+        ProcessInput --> ProcessWindowEvents: Input handled
+        ProcessWindowEvents --> CheckCloseRequest: Events processed
+        
+        CheckCloseRequest --> UpdateCallback: No close requested
+        CheckCloseRequest --> Stopping: Close requested
+        
+        UpdateCallback --> RenderFrame: Update complete
+        RenderFrame --> PresentFrame: Rendering complete
+        PresentFrame --> ProcessInput: Next frame
         
         note right of ProcessInput
-            - Keyboard
-            - Mouse
-            - Gamepad
-            - Touch
+            Keyboard
+            Mouse
+            Gamepad
+            Touch
         end note
         
         note right of ProcessWindowEvents
-            - Resize
-            - Close
-            - Focus
-            - PPI change
+            Resize
+            Close
+            Focus
+            PPI change
         end note
         
         note right of UpdateCallback
-            - Lógica do jogo
-            - Física
-            - IA
-            - Animação
+            User logic
+            Physics
+            AI
+            Animation
         end note
         
         note right of RenderFrame
-            - Command lists
-            - Draw calls
-            - Compute shaders
+            GPU commands
+            Draw calls
+            Compute shaders
         end note
     }
     
-    Iniciando --> MainLoop : kore_start()
-    MainLoop --> Finalizando : kore_stop()
-    Finalizando --> [*] : Cleanup
-    
-    MainLoop --> Shutdown : Evento de fechar
-    Shutdown --> [*]
+    Running --> Stopping: kore_stop() called
+    Stopping --> Cleanup: Stop requested
+    Cleanup --> [*]: Resources freed
 ```
 
 ---
 
-## Pipeline de Renderização GPU
+## 4. GPU Rendering Pipeline
 
 ```mermaid
-graph LR
-    subgraph "Preparação"
-        A[Criar Command List] --> B[Begin Command List]
-        B --> C[Set Viewport]
-        C --> D[Set Scissor]
-        D --> E[Clear Render Target]
-    end
+flowchart TD
+    A[Application Frame Start] --> B[Create Command List]
+    B --> C[Begin Command List]
     
-    subgraph "Pipeline Setup"
-        E --> F[Set Pipeline State]
-        F --> G[Set Vertex Buffer]
-        G --> H[Set Index Buffer]
-        H --> I[Set Constant Buffers]
-        I --> J[Set Textures]
-        J --> K[Set Samplers]
-    end
+    C --> D{Render Pass Setup}
+    D --> E[Set Render Target]
+    E --> F[Set Viewport]
+    D --> G[Set Scissor Rect]
     
-    subgraph "Draw/Dispatch"
-        K --> L{Tipo?}
-        L -->|Draw| M[Draw Indexed/Instanced]
-        L -->|Dispatch| N[Dispatch Compute]
-        L -->|Ray Trace| O[Dispatch Rays]
-    end
+    F --> H[Clear Render Target]
+    G --> H
     
-    subgraph "Finalização"
-        M --> P[End Command List]
-        N --> P
-        O --> P
-        P --> Q[Submit to Queue]
-        Q --> R[Signal Fence]
-        R --> S[Present]
-    end
+    H --> I[Set Pipeline State]
+    I --> J[Set Vertex Buffers]
+    J --> K[Set Index Buffer]
+    K --> L[Set Constant Buffers]
+    L --> M[Set Textures]
+    M --> N[Set Samplers]
     
-    style A fill:#e3f2fd
-    style F fill:#fff3e0
-    style L fill:#f3e5f5
-    style Q fill:#e8f5e9
+    N --> O{Draw or Dispatch?}
+    O -->|Draw| P[Set Primitive Type]
+    O -->|Dispatch| Q[Compute Shader]
+    
+    P --> R[Draw Indexed/Non-Indexed]
+    Q --> R
+    
+    R --> S{More Draw Calls?}
+    S -->|Yes| I
+    S -->|No| T
+    
+    T --> U[End Command List]
+    U --> V[Submit to Queue]
+    V --> W[Wait for Fence]
+    W --> X[Present Swapchain]
+    X --> Y[Frame Complete]
 ```
 
 ---
 
-## Hierarquia de Classes/Structs
+## 5. Class/Struct Hierarchy
 
 ```mermaid
 classDiagram
-    class kore_window_parameters {
-        +const char* title
-        +int x, y, width, height
-        +int display_index
-        +bool visible
-        +int window_features
-        +kore_window_mode mode
+    class kore_window {
+        +int id
+        +int width
+        +int height
+        +bool fullscreen
+        +void* platform_data
+        +kore_framebuffer framebuffer
     }
     
-    class kore_framebuffer_parameters {
+    class kore_display {
+        +int id
+        +int width
+        +int height
         +int frequency
-        +bool vertical_sync
-        +int color_bits
-        +int depth_bits
-        +int stencil_bits
-        +int samples_per_pixel
+        +bool is_primary
     }
     
     class kore_gpu_device {
-        +Criar command lists
-        +Criar pipelines
-        +Criar buffers
-        +Criar texturas
-        +Criar samplers
+        +kore_gpu_adapter adapter
+        +void* native_device
+        +create_command_list()
+        +create_pipeline()
+        +create_buffer()
+        +create_texture()
     }
     
     class kore_gpu_command_list {
@@ -266,481 +302,499 @@ classDiagram
         +set_buffers()
         +draw()
         +dispatch()
+        +submit()
+    }
+    
+    class kore_gpu_pipeline {
+        +vertex_shader
+        +fragment_shader
+        +input_layout
+        +blend_state
+        +depth_state
+        +rasterizer_state
     }
     
     class kore_gpu_buffer {
-        +lock()
-        +unlock()
-        +destroy()
+        +type
+        +size
+        +usage
+        +map()
+        +unmap()
+        +upload()
     }
     
     class kore_gpu_texture {
+        +width
+        +height
+        +format
+        +usage
         +upload()
         +generate_mipmaps()
-        +destroy()
     }
     
-    class kore_sound {
-        +play(volume, pan)
-        +stop()
-        +destroy()
+    class kore_audio_mixer {
+        +channels
+        +volume
+        +play_sound()
+        +stop_sound()
+        +stream_music()
     }
     
-    class kore_file_reader {
-        +open(path)
-        +read(buffer, size)
-        +size()
-        +close()
+    class kore_keyboard {
+        +pressed(key)
+        +down(key)
+        +get_text()
     }
     
-    kore_window_parameters --o kore_init
-    kore_framebuffer_parameters --o kore_init
-    kore_gpu_device --* kore_gpu_command_list
-    kore_gpu_device --* kore_gpu_buffer
-    kore_gpu_device --* kore_gpu_texture
+    class kore_mouse {
+        +x
+        +y
+        +moved_x
+        +moved_y
+        +pressed(button)
+        +down(button)
+    }
+    
+    class kore_gamepad {
+        +id
+        +pressed(button)
+        +down(button)
+        +axis(axis)
+    }
+    
+    kore_window *-- kore_display : belongs to
+    kore_window *-- kore_gpu_device : uses
+    kore_gpu_device *-- kore_gpu_command_list : creates
+    kore_gpu_device *-- kore_gpu_pipeline : creates
+    kore_gpu_device *-- kore_gpu_buffer : creates
+    kore_gpu_device *-- kore_gpu_texture : creates
+    kore_gpu_command_list --> kore_gpu_pipeline : sets
+    kore_gpu_command_list --> kore_gpu_buffer : binds
+    kore_gpu_command_list --> kore_gpu_texture : samples
 ```
 
 ---
 
-## Sistema de Input
+## 6. Input System Architecture
 
 ```mermaid
-graph TB
-    subgraph "Hardware"
-        KB[Teclado]
+graph LR
+    subgraph "Hardware Layer"
+        KB[Keyboard]
         MS[Mouse]
         GP[Gamepad]
         TS[Touch Screen]
-        PEN[Pen/Stylus]
-        ACC[Acelerômetro]
-        GYR[Giroscópio]
+        AC[Accelerometer]
+        GY[Gyroscope]
     end
     
-    subgraph "Backend de Input"
-        WinInput[Windows Input]
-        MacInput[macOS Input]
-        LinuxInput[Linux Input]
-        AndroidInput[Android Input]
-        WebInput[Web Input]
+    subgraph "Platform Input Backends"
+        WIN[Windows Input]
+        MAC[macOS Input]
+        LIN[Linux Input]
+        AND[Android Input]
+        IOS[iOS Input]
+        WEB[Web Input]
     end
     
-    subgraph "Kore Input Layer"
-        Keyboard[Keyboard API]
-        Mouse[Mouse API]
-        Gamepad[Gamepad API]
-        Surface[Touch Surface API]
-        Motion[Motion API]
+    subgraph "Kore Input API"
+        KEY[kore_keyboard_*]
+        MOU[kore_mouse_*]
+        PAD[kore_gamepad_*]
+        TOU[kore_touch_*]
+        SEN[kore_sensor_*]
     end
     
-    subgraph "Aplicação"
-        GameLogic[Lógica do Jogo]
-        UI[Sistema de UI]
-        Camera[Controle de Câmera]
+    subgraph "User Application"
+        GAME[Game Logic]
     end
     
-    KB --> WinInput
-    KB --> MacInput
-    KB --> LinuxInput
-    KB --> WebInput
+    KB --> WIN
+    KB --> MAC
+    KB --> LIN
     
-    MS --> WinInput
-    MS --> MacInput
-    MS --> LinuxInput
-    MS --> WebInput
+    MS --> WIN
+    MS --> MAC
+    MS --> LIN
     
-    GP --> WinInput
-    GP --> MacInput
-    GP --> LinuxInput
-    GP --> AndroidInput
+    GP --> WIN
+    GP --> MAC
+    GP --> AND
+    GP --> IOS
     
-    TS --> AndroidInput
-    TS --> WebInput
+    TS --> AND
+    TS --> IOS
+    TS --> WEB
     
-    WinInput --> Keyboard
-    WinInput --> Mouse
-    WinInput --> Gamepad
+    AC --> AND
+    AC --> IOS
     
-    MacInput --> Keyboard
-    MacInput --> Mouse
-    MacInput --> Gamepad
+    GY --> AND
+    GY --> IOS
     
-    LinuxInput --> Keyboard
-    LinuxInput --> Mouse
-    LinuxInput --> Gamepad
+    WIN --> KEY
+    WIN --> MOU
+    WIN --> PAD
     
-    AndroidInput --> Gamepad
-    AndroidInput --> Surface
-    AndroidInput --> Motion
+    MAC --> KEY
+    MAC --> MOU
+    MAC --> PAD
     
-    WebInput --> Keyboard
-    WebInput --> Mouse
-    WebInput --> Gamepad
-    WebInput --> Surface
+    LIN --> KEY
+    LIN --> MOU
     
-    Keyboard --> GameLogic
-    Keyboard --> UI
+    AND --> KEY
+    AND --> MOU
+    AND --> PAD
+    AND --> TOU
+    AND --> SEN
     
-    Mouse --> GameLogic
-    Mouse --> UI
-    Mouse --> Camera
+    IOS --> KEY
+    IOS --> MOU
+    IOS --> PAD
+    IOS --> TOU
+    IOS --> SEN
     
-    Gamepad --> GameLogic
-    Gamepad --> UI
+    WEB --> KEY
+    WEB --> MOU
+    WEB --> PAD
     
-    Surface --> GameLogic
-    Surface --> UI
-    
-    Motion --> GameLogic
+    KEY --> GAME
+    MOU --> GAME
+    PAD --> GAME
+    TOU --> GAME
+    SEN --> GAME
 ```
 
 ---
 
-## Sistema de Áudio
+## 7. Audio System Architecture
 
 ```mermaid
 graph TB
-    subgraph "Fontes de Áudio"
-        SoundFiles[Arquivos .wav/.ogg]
-        Streams[Música/.ogg streams]
-        Procedural[Áudio Procedural]
+    subgraph "Audio Sources"
+        WAV[.wav Files]
+        OGG[.ogg Files]
+        STREAM[Music Stream]
+        PROC[Procedural Audio]
     end
     
-    subgraph "Kore Audio System"
-        Mixer[Mixer Principal]
-        Voices[Canais/Voices]
-        Effects[Efeitos (pan, volume)]
+    subgraph "Audio Decoding"
+        STB[stb_vorbis]
+        WAV_DEC[WAV Decoder]
     end
     
-    subgraph "Backends"
-        WASAPI[WASAPI - Windows]
-        DirectSound[DirectSound - Windows]
-        CoreAudio[CoreAudio - macOS/iOS]
-        ALSA[ALSA - Linux]
-        OpenSL[OpenSL ES - Android]
-        WebAudio[Web Audio API - Web]
+    subgraph "Kore Audio Mixer"
+        VOICES[Voice Pool]
+        CHANNELS[Channels]
+        EFFECTS[Effects]
+        MIXER[Mixer Core]
+    end
+    
+    subgraph "Platform Audio Backends"
+        WASAPI[WASAPI]
+        DS[DirectSound]
+        CA[CoreAudio]
+        ALSA[ALSA]
+        OPENSL[OpenSL ES]
+        WEB_AUDIO[Web Audio API]
     end
     
     subgraph "Output"
-        Speakers[Alto-falantes]
-        Headphones[Fones de ouvido]
-        HDMI[Áudio HDMI]
+        SPEAKERS[Speakers]
+        HEADPHONES[Headphones]
     end
     
-    SoundFiles --> Mixer
-    Streams --> Mixer
-    Procedural --> Mixer
+    WAV --> WAV_DEC
+    OGG --> STB
+    STREAM --> STB
+    PROC --> VOICES
     
-    Mixer --> Voices
-    Voices --> Effects
+    WAV_DEC --> VOICES
+    STB --> VOICES
     
-    Effects --> WASAPI
-    Effects --> DirectSound
-    Effects --> CoreAudio
-    Effects --> ALSA
-    Effects --> OpenSL
-    Effects --> WebAudio
+    VOICES --> CHANNELS
+    CHANNELS --> EFFECTS
+    EFFECTS --> MIXER
     
-    WASAPI --> Speakers
-    DirectSound --> Speakers
-    CoreAudio --> Speakers
-    ALSA --> Speakers
-    OpenSL --> Speakers
-    WebAudio --> Speakers
+    MIXER --> WASAPI
+    MIXER --> DS
+    MIXER --> CA
+    MIXER --> ALSA
+    MIXER --> OPENSL
+    MIXER --> WEB_AUDIO
     
-    WASAPI --> Headphones
-    CoreAudio --> Headphones
-    
-    WASAPI --> HDMI
+    WASAPI --> SPEAKERS
+    DS --> SPEAKERS
+    CA --> SPEAKERS
+    ALSA --> SPEAKERS
+    OPENSL --> SPEAKERS
+    WEB_AUDIO --> SPEAKERS
 ```
 
 ---
 
-## Build System (kmake)
+## 8. Build System (kmake) Flow
 
 ```mermaid
-graph TB
-    subgraph "Configuração"
-        Platform[Plataforma Alvo]
-        Graphics[API Gráfica]
-        Audio[API de Áudio]
-        Options[Opções Extras]
-    end
+flowchart TD
+    A[kfile.js Configuration] --> B[kmake Tool]
     
-    subgraph "kmake"
-        ParseKFile[Parse kfile.js]
-        ResolveFiles[Resolver arquivos]
-        SelectBackends[Selecionar backends]
-        GenerateProject[Gerar projeto IDE]
-    end
+    B --> C{Parse Configuration}
+    C --> D[Identify Source Files]
+    C --> E[Identify Dependencies]
+    C --> F[Select Backends]
     
-    subgraph "Projetos Gerados"
-        VS[Visual Studio .vcxproj]
-        Xcode[Xcode .xcodeproj]
-        Make[Makefile]
-        CMake[CMakeLists.txt]
-    end
+    D --> G{Target Platform?}
+    E --> G
+    F --> G
     
-    subgraph "Compilação"
-        Compiler[Compilador C/C++]
-        Linker[Linker]
-        ShaderComp[Compiler de Shaders]
-    end
+    G -->|Windows| H[Visual Studio Generator]
+    G -->|macOS| I[Xcode Generator]
+    G -->|Linux| J[Makefile/CMake Generator]
+    G -->|Android| K[Gradle Generator]
+    G -->|iOS| I
+    G -->|Web| L[Emscripten Generator]
     
-    subgraph "Binário Final"
-        Executable[.exe / .app / .apk]
-        Assets[Assets empacotados]
-        Libs[Bibliotecas necessárias]
-    end
+    H --> M[.vcxproj Files]
+    I --> N[.xcodeproj Files]
+    J --> O[Makefile / CMakeLists.txt]
+    K --> P[build.gradle]
+    L --> Q[shell.html + JS]
     
-    Platform --> ParseKFile
-    Graphics --> ParseKFile
-    Audio --> ParseKFile
-    Options --> ParseKFile
+    M --> R[MSBuild]
+    N --> S[xcodebuild]
+    O --> T[make / cmake --build]
+    P --> U[gradle build]
+    Q --> V[emcc]
     
-    ParseKFile --> ResolveFiles
-    ResolveFiles --> SelectBackends
-    SelectBackends --> GenerateProject
-    
-    GenerateProject --> VS
-    GenerateProject --> Xcode
-    GenerateProject --> Make
-    GenerateProject --> CMake
-    
-    VS --> Compiler
-    Xcode --> Compiler
-    Make --> Compiler
-    CMake --> Compiler
-    
-    Compiler --> Linker
-    ShaderComp --> Linker
-    
-    Linker --> Executable
-    Executable --> Assets
-    Executable --> Libs
-    
-    style ParseKFile fill:#fff3e0
-    style GenerateProject fill:#e3f2fd
-    style Executable fill:#e8f5e9
+    R --> W[Executable/Binary]
+    S --> W
+    T --> W
+    U --> W[APK]
+    V --> X[HTML + WASM + JS]
 ```
 
 ---
 
-## Dependências entre Módulos
+## 9. Module Dependencies Graph
 
 ```mermaid
-graph TD
-    Global[global.h]
-    System[system.h]
-    Window[window.h]
-    Display[display.h]
-    Log[log.h]
+graph LR
+    subgraph "Core Modules"
+        SYS[system.h]
+        WIN[window.h]
+        LOG[log.h]
+    end
     
-    GPU[gpu/gpu.h]
-    Device[gpu/device.h]
-    CmdList[gpu/commandlist.h]
-    Buffer[gpu/buffer.h]
-    Texture[gpu/texture.h]
-    Sampler[gpu/sampler.h]
-    Pipeline[gpu/pipeline.h]
-    RayTracing[gpu/raytracing.h]
+    subgraph "GPU Modules"
+        GPU[gpu.h]
+        DEV[device.h]
+        CMD[command_list.h]
+        PIPE[pipeline.h]
+        BUF[buffer.h]
+        TEX[texture.h]
+        SHADER[shader.h]
+    end
     
-    Audio[mixer/mixer.h]
-    Sound[mixer/sound.h]
-    SoundStream[mixer/soundstream.h]
+    subgraph "Input Modules"
+        KEY[keyboard.h]
+        MOU[mouse.h]
+        PAD[gamepad.h]
+        TOU[touch.h]
+    end
     
-    Keyboard[input/keyboard.h]
-    Mouse[input/mouse.h]
-    Gamepad[input/gamepad.h]
-    Surface[input/surface.h]
+    subgraph "Audio Modules"
+        MIX[mixer.h]
+        SND[sound.h]
+        STR[stream.h]
+    end
     
-    FileReader[io/filereader.h]
-    FileWriter[io/filewriter.h]
+    subgraph "Utility Modules"
+        IO[io.h]
+        NET[network.h]
+        MATH[math.h]
+        THR[threads.h]
+        IMG[image.h]
+    end
     
-    HTTP[network/http.h]
-    Socket[network/socket.h]
+    SYS --> WIN
+    WIN --> GPU
+    WIN --> KEY
+    WIN --> MOU
     
-    Vector[math/vector.h]
-    Matrix[math/matrix.h]
-    Quaternion[math/quaternion.h]
-    Random[math/random.h]
+    GPU --> DEV
+    DEV --> CMD
+    DEV --> PIPE
+    DEV --> BUF
+    DEV --> TEX
+    PIPE --> SHADER
+    CMD --> BUF
+    CMD --> TEX
     
-    Thread[threads/thread.h]
-    Mutex[threads/mutex.h]
-    Semaphore[threads/semaphore.h]
+    KEY --> SYS
+    MOU --> SYS
+    PAD --> SYS
+    TOU --> SYS
     
-    Image[image.h]
-    Color[color.h]
-    Video[video.h]
+    MIX --> SND
+    MIX --> STR
+    SND --> IO
     
-    VR[vr/vr.h]
+    IO --> SYS
+    NET --> SYS
+    THR --> SYS
     
-    Global --> System
-    Global --> Window
-    Global --> Display
-    Global --> Log
-    Global --> GPU
-    
-    System --> Window
-    System --> Display
-    System --> Log
-    
-    GPU --> Device
-    Device --> CmdList
-    Device --> Buffer
-    Device --> Texture
-    Device --> Sampler
-    Device --> Pipeline
-    Pipeline --> RayTracing
-    
-    Audio --> Sound
-    Audio --> SoundStream
-    
-    Image --> Color
-    Video --> Image
-    
-    style Global fill:#ffcdd2
-    style GPU fill:#bbdefb
-    style Audio fill:#c8e6c9
-    style Image fill:#fff9c4
+    MATH --> SYS
+    IMG --> IO
 ```
 
 ---
 
-## Ciclo de Vida de Recursos GPU
+## 10. GPU Resource Lifecycle
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Alocado : create()
+    [*] --> NotCreated: Application start
     
-    state "Em Uso" como EmUso {
-        Locked --> Mapped : lock()/map()
-        Mapped --> Modificado : Escrever dados
-        Modificado --> Unmapped : unlock()/unmap()
-        Unmapped --> Ready : flush()
+    NotCreated --> Creating: create_buffer/texture()
+    Creating --> Created: Resource allocated
+    
+    state Created {
+        [*] --> Unmapped
+        
+        Unmapped --> Mapping: map()
+        Mapping --> Mapped: Memory accessible
+        
+        Mapped --> Uploading: write data
+        Uploading --> Mapped: Write complete
+        
+        Mapped --> Unmapping: unmap()
+        Unmapping --> Unmapped: Sync complete
+        
+        Unmapped --> InUse: bind to command list
+        InUse --> Unmapped: Command submitted
     }
     
-    Alocado --> EmUso
-    EmUso --> Ready
+    Created --> Destroying: destroy()
+    Destroying --> Destroyed: Freed
+    Destroyed --> [*]
     
-    Ready --> Bound : bind to pipeline
-    Bound --> Drawing : draw/dispatch
-    Drawing --> Ready : complete
-    
-    Ready --> Alocado : destroy()
-    Bound --> Alocado : destroy()
-    EmUso --> Alocado : destroy()
-    
-    note right of Alocado
-        Memória alocada
-        na GPU
+    note right of Creating
+        GPU memory allocated
+        Platform-specific handle created
     end note
     
-    note right of Locked
-        CPU espera GPU
-        liberar recurso
+    note right of Mapped
+        CPU can read/write
+        GPU access restricted
     end note
     
-    note right of Bound
-        Recurso ativo
-        no command buffer
-    end note
-    
-    note right of Drawing
-        GPU processando
-        comandos
+    note right of InUse
+        GPU is using resource
+        CPU must wait or use sync
     end note
 ```
 
 ---
 
-## Multi-Janela e Multi-Display
+## 11. Multi-Window and Multi-Display Support
 
 ```mermaid
 graph TB
-    subgraph "Sistema de Displays"
-        D0[Display 0<br/>1920x1080 @ 60Hz]
-        D1[Display 1<br/>2560x1440 @ 144Hz]
-        D2[Display 2<br/>3840x2160 @ 30Hz]
+    subgraph "Physical Displays"
+        DISP1[Display 1<br/>1920x1080 @ 60Hz]
+        DISP2[Display 2<br/>2560x1440 @ 144Hz]
     end
     
-    subgraph "Janelas"
-        W0[Janela 0<br/>Principal]
-        W1[Janela 1<br/>Secundária]
-        W2[Janela 2<br/>Overlay]
+    subgraph "Kore Display Objects"
+        KDISP1[kore_display #0<br/>Primary]
+        KDISP2[kore_display #1<br/>Secondary]
+    end
+    
+    subgraph "Kore Windows"
+        WIN1[kore_window #1<br/>Main Game Window]
+        WIN2[kore_window #2<br/>Editor Panel]
+        WIN3[kore_window #3<br/>Debug Console]
     end
     
     subgraph "Framebuffers"
-        FB0[Framebuffer 0<br/>Triple buffered]
-        FB1[Framebuffer 1<br/>Double buffered]
-        FB2[Framebuffer 2<br/>Single buffered]
+        FB1[Framebuffer 1<br/>Color + Depth]
+        FB2[Framebuffer 2<br/>Color Only]
+        FB3[Framebuffer 3<br/>Color + Depth]
     end
     
-    subgraph "Eventos"
-        E0[Resize Event]
-        E1[Move Event]
-        E2[PPI Changed]
-        E3[Focus Changed]
-    end
+    DISP1 --> KDISP1
+    DISP2 --> KDISP2
     
-    D0 --> W0
-    D1 --> W1
-    D2 --> W2
+    KDISP1 --> WIN1
+    KDISP1 --> WIN3
+    KDISP2 --> WIN2
     
-    W0 --> FB0
-    W1 --> FB1
-    W2 --> FB2
+    WIN1 --> FB1
+    WIN2 --> FB2
+    WIN3 --> FB3
     
-    W0 --> E0
-    W0 --> E1
-    W0 --> E2
-    W0 --> E3
+    FB1 --> GPU1[GPU Render Target 1]
+    FB2 --> GPU2[GPU Render Target 2]
+    FB3 --> GPU3[GPU Render Target 3]
     
-    W1 --> E0
-    W1 --> E1
-    W1 --> E2
+    note right of WIN1
+        Fullscreen possible
+        Can span displays
+    end note
     
-    W2 --> E0
-    W2 --> E3
-    
-    style D0 fill:#e3f2fd
-    style D1 fill:#e3f2fd
-    style D2 fill:#e3f2fd
-    style W0 fill:#fff3e0
-    style W1 fill:#fff3e0
-    style W2 fill:#fff3e0
+    note right of WIN2
+        Secondary display
+        Different refresh rate
+    end note
 ```
 
 ---
 
-## Thread Safety e Sincronização
+## 12. Thread Safety and Synchronization
 
 ```mermaid
 sequenceDiagram
     participant Main as Main Thread
-    participant Render as Render Thread
     participant Worker as Worker Thread
     participant GPU as GPU Driver
-    participant Mutex as Mutex/Semaphore
+    participant Mutex as Mutex
+    participant Fence as GPU Fence
     
     Main->>Mutex: lock()
-    Main->>Main: Acessar recurso compartilhado
-    Main->>Mutex: unlock()
+    Mutex-->>Main: Acquired
     
-    par Frame Processing
-        Main->>Worker: Dispatch task
-        Worker->>Worker: Processar dados
-        Worker->>Main: Signal completion
+    Main->>Worker: Start thread
+    activate Worker
+    
+    Worker->>Mutex: lock()
+    Mutex-->>Worker: Blocked
+    
+    Main->>Main: Update shared data
+    Main->>Mutex: unlock()
+    Mutex-->>Worker: Acquired
+    
+    Worker->>Worker: Process data
+    Worker->>Fence: Create signal
+    
+    par Parallel Execution
+        Main->>GPU: Submit command list
+        GPU-->>Main: Queued
+        GPU->>Fence: Signal when done
     and
-        Main->>Render: Submit command list
-        Render->>GPU: Execute commands
-        GPU-->>Render: Fence signal
+        Worker->>Worker: Continue work
+        Worker->>Fence: Wait for signal
     end
     
-    Main->>Mutex: wait()
-    Worker->>Main: Task completa
+    GPU->>GPU: Execute commands
+    GPU->>Fence: Signal complete
+    Fence-->>Worker: Signaled
     
-    Render->>Main: Frame completo
-    Main->>Main: Swap buffers
+    Worker->>Mutex: unlock()
+    Worker-->>Main: Join complete
+    deactivate Worker
     
-    Note over Main,GPU: Fences garantem que<br/>a GPU terminou antes<br/>de reutilizar recursos
+    Main->>Main: Read results
 ```
+
