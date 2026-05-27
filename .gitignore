@@ -1,18 +1,48 @@
-/build
-/Tests/Empty/build
+```
+# Documentation files (if generated)
+*.md.bak
+*.md~
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+coverage/
+htmlcov/
+.dist-info/
+
+# Build artifacts
+dist/
+build/
+target/
+*.pyc
+*.class
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
+
+# System files
 .DS_Store
-# clangd cache
-.cache
-# ignore all build directories
-**/build/**
-# Shaders
-*.vert
-*.frag
-*.comp
-# Ignore deployment directories, but not the keepme files (order is important)
-**/deployment/**
-!**/deployment/keepme
-compile_commands.json
-.vscode/**
-**/deployment/**
-!**/deployment/keepme*
+Thumbs.db
+```
